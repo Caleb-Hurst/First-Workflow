@@ -10,7 +10,6 @@ const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function findAssociatedPRNumber(issueNumber) {
-  // 1. Timeline events for cross-referenced PRs
   const timeline = await octokit.issues.listEventsForTimeline({
     owner,
     repo,
@@ -33,7 +32,6 @@ async function findAssociatedPRNumber(issueNumber) {
     }
   }
 
-  // 2. Scan all open PRs for #issueNumber in their body
   const prs = await octokit.pulls.list({
     owner,
     repo,
@@ -56,8 +54,6 @@ async function findAssociatedPRNumber(issueNumber) {
 
   for (const comment of comments.data) {
     const numberMatch = comment.body.match(/#(\d+)/);
-    // const urlMatch = comment.body.match(/github\.com\/[^\/]+\/[^\/]+\/pull\/(\d+)/);
-    // if (urlMatch) return urlMatch[1];
     if (numberMatch) {
       const possibleNumber = numberMatch[1];
       try {
@@ -71,7 +67,6 @@ async function findAssociatedPRNumber(issueNumber) {
 }
 
 async function run() {
-  // List open issues with the label
   const issues = await octokit.issues.listForRepo({
     owner,
     repo,
@@ -109,7 +104,6 @@ async function run() {
       commentBody += `Failed to generate LLM QA analysis: ${error.message}\n\n`;
     }
 
-    // If PR found, get details and summarize code changes
     if (prNumber) {
       try {
         const pr = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
@@ -125,7 +119,6 @@ async function run() {
           .map(f => `File: ${f.filename}\n${f.patch}`)
           .join('\n\n');
 
-        // Compose a prompt for GPT to summarize actual code changes
         const prPrompt = `A pull request (#${prNumber}) is associated with this issue. Here are the details:\nPR Title: ${prTitle}\nPR Body: ${prBody}\nFiles changed: ${filesList}\nCode changes:\n${diffs}\n\nSummarize what the code in this PR does for QA.`;
 
         const prResponse = await openai.chat.completions.create({
@@ -146,7 +139,6 @@ async function run() {
       commentBody += `No associated pull request found for this issue.\n\n`;
     }
 
-    // Comment on the issue with the combined analysis
     try {
       await octokit.issues.createComment({
         owner,
