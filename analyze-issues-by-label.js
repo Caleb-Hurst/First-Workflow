@@ -47,16 +47,16 @@ async function findAssociatedPRNumber(issueNumber) {
     }
   }
 
-  // 3. Fallback: search body and comments for PR references
-  const issue = await octokit.issues.get({ owner, repo, issue_number: issueNumber });
-  const bodyPRMatch = issue.data.body && issue.data.body.match(/#(\d+)/);
-  if (bodyPRMatch) {
-    const possibleNumber = bodyPRMatch[1];
-    try {
-      const pr = await octokit.pulls.get({ owner, repo, pull_number: possibleNumber });
-      if (pr) return possibleNumber;
-    } catch (err) {}
-  }
+  // // 3. Fallback: search body and comments for PR references
+  // const issue = await octokit.issues.get({ owner, repo, issue_number: issueNumber });
+  // const bodyPRMatch = issue.data.body && issue.data.body.match(/#(\d+)/);
+  // if (bodyPRMatch) {
+  //   const possibleNumber = bodyPRMatch[1];
+  //   try {
+  //     const pr = await octokit.pulls.get({ owner, repo, pull_number: possibleNumber });
+  //     if (pr) return possibleNumber;
+  //   } catch (err) {}
+  // }
 
   const comments = await octokit.issues.listComments({
     owner,
@@ -99,16 +99,12 @@ async function run() {
   for (const issue of issues.data) {
     const { number, title, body, labels } = issue;
 
-    // Find associated PR by body, comments, or timeline events
     let prNumber = await findAssociatedPRNumber(number);
 
-    // Prepare base prompt for ticket summary
     const issuePrompt = `You are an expert GitHub issue analyst. Summarize the ticket below in clear language for QA:\nTitle: ${title}\nBody: ${body}\nLabels: ${labels.map(l => l.name).join(", ")}`;
 
-    // Start building the comment body
     let commentBody = "";
 
-    // First, do the issue summary via GPT
     try {
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
@@ -149,7 +145,7 @@ async function run() {
             { role: "system", content: "You are an expert code reviewer. Briefly summarize what the following pull request's code changes accomplish, in plain language for QA." },
             { role: "user", content: prPrompt }
           ],
-          max_tokens: 400 // increase for more room for code summary
+          max_tokens: 400
         });
 
         const prAnalysis = prResponse.choices[0].message.content;
