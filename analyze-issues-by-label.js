@@ -134,8 +134,14 @@ async function run() {
         const prBody = pr.data.body;
         const filesList = changedFiles.data.map(f => f.filename).join(", ");
 
-        // Compose a prompt for GPT to summarize code changes
-        const prPrompt = `A pull request (#${prNumber}) is associated with this issue. Here are the details:\nPR Title: ${prTitle}\nPR Body: ${prBody}\nFiles changed: ${filesList}\n\nBriefly summarize what the code in this PR does for QA.`;
+        // Gather patches (diffs) for all changed files
+        const diffs = changedFiles.data
+          .filter(f => f.patch)
+          .map(f => `File: ${f.filename}\n${f.patch}`)
+          .join('\n\n');
+
+        // Compose a prompt for GPT to summarize actual code changes
+        const prPrompt = `A pull request (#${prNumber}) is associated with this issue. Here are the details:\nPR Title: ${prTitle}\nPR Body: ${prBody}\nFiles changed: ${filesList}\nCode changes:\n${diffs}\n\nSummarize what the code in this PR does for QA.`;
 
         const prResponse = await openai.chat.completions.create({
           model: "gpt-4o",
@@ -143,7 +149,7 @@ async function run() {
             { role: "system", content: "You are an expert code reviewer. Briefly summarize what the following pull request's code changes accomplish, in plain language for QA." },
             { role: "user", content: prPrompt }
           ],
-          max_tokens: 200
+          max_tokens: 400 // increase for more room for code summary
         });
 
         const prAnalysis = prResponse.choices[0].message.content;
