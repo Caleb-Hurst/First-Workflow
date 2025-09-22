@@ -16,7 +16,7 @@ async function run() {
     repo,
     labels: label,
     state: "open",
-    per_page: 100 // adjust as needed
+    per_page: 100
   });
 
   if (!issues.data.length) {
@@ -27,43 +27,108 @@ async function run() {
   for (const issue of issues.data) {
     const { number, title, body, labels } = issue;
 
-    // MCP context for issue
-    const mcp_context = {
-      type: "github_issue",
-      number,
-      title,
-      body,
-      labels: labels.map(l => l.name),
-      // Optionally add more fields (comments, links, etc.)
-    };
+    // Get issue comments to look for PR references
+    const comments = await octokit.issues.listComments({
+      owner,
+      repo,
+      issue_number: number,
+      per_page: 50
+    });
 
-    // LLM prompts
-    const systemPrompt = "You are an expert GitHub issue analyst. Summarize the ticket in clear language for QA.";
-    const userPrompt = JSON.stringify(mcp_context, null, 2);
+    // Try to find PR reference in comments
+    let prNumber = null;
+    for (const comment of comments.data) {
+      // Match #123 or PR URL
+      const numberMatch = comment.body.match(/#(\d+)/);
+      const urlMatch = comment.body.match(/github\.com\/[^\/]+\/[^\/]+\/pull\/(\d+)/);
+      if (urlMatch) {
+        prNumber = urlMatch[1];
+        break;
+      }
+      if (numberMatch) {
+        // Check if this issue number is really a PR
+        const possibleNumber = numberMatch[1];
+        // Confirm it's a PR
+        try {
+          const pr = await octokit.pulls.get({
+            owner,
+            repo,
+            pull_number: possibleNumber
+          });
+          if (pr) {
+            prNumber = possibleNumber;
+            break;
+          }
+        } catch (error) {
+          // Not a PR, skip
+        }
+      }
+    }
 
+    // Prepare base prompt for ticket summary
+    const issuePrompt = `You are an expert GitHub issue analyst. Summarize the ticket below in clear language for QA:\nTitle: ${title}\nBody: ${body}\nLabels: ${labels.map(l => l.name).join(", ")}`;
+
+    // Start building the comment body
+    let commentBody = "";
+
+    // First, do the issue summary via GPT
     try {
       const response = await openai.chat.completions.create({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
+          { role: "system", content: "You are an expert GitHub issue analyst. Summarize the ticket in clear language for QA." },
+          { role: "user", content: issuePrompt }
         ],
         max_tokens: 300
       });
-
       const analysis = response.choices[0].message.content;
-      console.log(`\n--- Issue #${number}: ${title} ---`);
-      console.log(analysis);
+      commentBody += `LLM QA analysis:\n\n${analysis}\n\n`;
+    } catch (error) {
+      commentBody += `Failed to generate LLM QA analysis: ${error.message}\n\n`;
+    }
 
-      // Comment on the issue with the analysis
+    // If PR found, get details and summarize code changes
+    if (prNumber) {
+      try {
+        const pr = await octokit.pulls.get({ owner, repo, pull_number: prNumber });
+        const changedFiles = await octokit.pulls.listFiles({ owner, repo, pull_number: prNumber });
+
+        const prTitle = pr.data.title;
+        const prBody = pr.data.body;
+        const filesList = changedFiles.data.map(f => f.filename).join(", ");
+
+        // Compose a prompt for GPT to summarize code changes
+        const prPrompt = `A pull request (#${prNumber}) is associated with this issue. Here are the details:\nPR Title: ${prTitle}\nPR Body: ${prBody}\nFiles changed: ${filesList}\n\nBriefly summarize what the code in this PR does for QA.`;
+
+        const prResponse = await openai.chat.completions.create({
+          model: "gpt-4o",
+          messages: [
+            { role: "system", content: "You are an expert code reviewer. Briefly summarize what the following pull request's code changes accomplish, in plain language for QA." },
+            { role: "user", content: prPrompt }
+          ],
+          max_tokens: 200
+        });
+
+        const prAnalysis = prResponse.choices[0].message.content;
+        commentBody += `Associated PR (#${prNumber}) summary:\n\n${prAnalysis}\n\n`;
+      } catch (error) {
+        commentBody += `Failed to analyze associated PR (#${prNumber}): ${error.message}\n\n`;
+      }
+    } else {
+      commentBody += `No associated pull request found in issue comments.\n\n`;
+    }
+
+    // Comment on the issue with the combined analysis
+    try {
       await octokit.issues.createComment({
         owner,
         repo,
         issue_number: number,
-        body: `LLM QA analysis:\n\n${analysis}`
+        body: commentBody
       });
+      console.log(`Commented on Issue #${number}`);
     } catch (error) {
-      console.error(`Failed to analyze or comment on issue #${number}:`, error);
+      console.error(`Failed to comment on issue #${number}:`, error);
     }
   }
 }
