@@ -1,8 +1,8 @@
 name: Listen for Status Change
 
 on:
-  project_card:
-    types: [moved]
+  projects_v2_item:
+    types: [edited]
 
 jobs:
   on-status-change:
