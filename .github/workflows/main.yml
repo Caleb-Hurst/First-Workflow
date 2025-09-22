@@ -14,14 +14,14 @@ jobs:
 
       - name: Find tickets that need testing
         run: |
-          gh issue list --repo Caleb-Hurst/skills-integrate-mcp-with-copilot --label "needs-test" --json number > issues.json
+          gh issue list --repo Caleb-Hurst/First-Workflow --label "needs-test" --json number > issues.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Comment on tickets
         run: |
           for number in $(jq -r '.[].number' issues.json); do
-            gh issue comment $number --repo Caleb-Hurst/skills-integrate-mcp-with-copilot --body "Sending to QA for testing."
+            gh issue comment $number --repo Caleb-Hurst/First-Workflow --body "Sending to QA for testing."
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
