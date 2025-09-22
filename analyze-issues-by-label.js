@@ -9,6 +9,60 @@ const label = "needs-test";
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+async function findAssociatedPRNumber(issueNumber) {
+  // 1. Get timeline events for the issue to find linked PRs
+  const timeline = await octokit.issues.listEventsForTimeline({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    per_page: 100
+  });
+
+  for (const event of timeline.data) {
+    if (event.event === "connected" && event.source && event.source.issue && event.source.issue.pull_request) {
+      // Found a linked PR
+      return event.source.issue.number;
+    }
+    // Some events have a .pull_request field
+    if (event.event === "referenced" && event.commit_id == null && event.source && event.source.pull_request) {
+      return event.source.pull_request.number;
+    }
+  }
+
+  // 2. Fallback: search body and comments for PR references
+  const issue = await octokit.issues.get({ owner, repo, issue_number: issueNumber });
+  const bodyPRMatch = issue.data.body && issue.data.body.match(/#(\d+)/);
+  if (bodyPRMatch) {
+    const possibleNumber = bodyPRMatch[1];
+    try {
+      const pr = await octokit.pulls.get({ owner, repo, pull_number: possibleNumber });
+      if (pr) return possibleNumber;
+    } catch (err) {}
+  }
+
+  const comments = await octokit.issues.listComments({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    per_page: 50
+  });
+
+  for (const comment of comments.data) {
+    const numberMatch = comment.body.match(/#(\d+)/);
+    const urlMatch = comment.body.match(/github\.com\/[^\/]+\/[^\/]+\/pull\/(\d+)/);
+    if (urlMatch) return urlMatch[1];
+    if (numberMatch) {
+      const possibleNumber = numberMatch[1];
+      try {
+        const pr = await octokit.pulls.get({ owner, repo, pull_number: possibleNumber });
+        if (pr) return possibleNumber;
+      } catch (err) {}
+    }
+  }
+  // No PR found
+  return null;
+}
+
 async function run() {
   // List open issues with the label
   const issues = await octokit.issues.listForRepo({
@@ -27,43 +81,8 @@ async function run() {
   for (const issue of issues.data) {
     const { number, title, body, labels } = issue;
 
-    // Get issue comments to look for PR references
-    const comments = await octokit.issues.listComments({
-      owner,
-      repo,
-      issue_number: number,
-      per_page: 50
-    });
-
-    // Try to find PR reference in comments
-    let prNumber = null;
-    for (const comment of comments.data) {
-      // Match #123 or PR URL
-      const numberMatch = comment.body.match(/#(\d+)/);
-      const urlMatch = comment.body.match(/github\.com\/[^\/]+\/[^\/]+\/pull\/(\d+)/);
-      if (urlMatch) {
-        prNumber = urlMatch[1];
-        break;
-      }
-      if (numberMatch) {
-        // Check if this issue number is really a PR
-        const possibleNumber = numberMatch[1];
-        // Confirm it's a PR
-        try {
-          const pr = await octokit.pulls.get({
-            owner,
-            repo,
-            pull_number: possibleNumber
-          });
-          if (pr) {
-            prNumber = possibleNumber;
-            break;
-          }
-        } catch (error) {
-          // Not a PR, skip
-        }
-      }
-    }
+    // Find associated PR by body, comments, or timeline events
+    let prNumber = await findAssociatedPRNumber(number);
 
     // Prepare base prompt for ticket summary
     const issuePrompt = `You are an expert GitHub issue analyst. Summarize the ticket below in clear language for QA:\nTitle: ${title}\nBody: ${body}\nLabels: ${labels.map(l => l.name).join(", ")}`;
@@ -115,7 +134,7 @@ async function run() {
         commentBody += `Failed to analyze associated PR (#${prNumber}): ${error.message}\n\n`;
       }
     } else {
-      commentBody += `No associated pull request found in issue comments.\n\n`;
+      commentBody += `No associated pull request found for this issue.\n\n`;
     }
 
     // Comment on the issue with the combined analysis
