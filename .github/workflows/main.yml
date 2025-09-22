@@ -21,7 +21,7 @@ jobs:
       - name: Comment on tickets
         run: |
           for number in $(jq -r '.[].number' issues.json); do
-            gh issue comment $number --body "Sending to QA for testing."
+            gh issue comment $number --repo Caleb-Hurst/skills-integrate-mcp-with-copilot --body "Sending to QA for testing."
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
