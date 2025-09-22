@@ -7,21 +7,18 @@ jobs:
   send-tickets-to-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Install GitHub CLI and jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gh jq
+      - uses: actions/checkout@v4
 
-      - name: Find tickets that need testing
-        run: |
-          gh issue list --repo Caleb-Hurst/First-Workflow --label "needs-test" --json number > issues.json
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Comment on tickets
-        run: |
-          for number in $(jq -r '.[].number' issues.json); do
-            gh issue comment $number --repo Caleb-Hurst/First-Workflow --body "Sending to QA for testing."
-          done
+      - name: Install dependencies
+        run: npm install
+
+      - name: Analyze and comment on tickets needing test
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node analyze-issues-by-label.js
