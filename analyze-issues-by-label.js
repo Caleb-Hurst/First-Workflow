@@ -35,7 +35,8 @@ async function run() {
       per_page: 50
     });
 
-    // Try to find PR reference in comments
+    // Try to find PR reference in comments just changing small things
+
     let prNumber = null;
     for (const comment of comments.data) {
       // Match #123 or PR URL
