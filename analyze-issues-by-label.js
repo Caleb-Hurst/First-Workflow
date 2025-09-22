@@ -113,7 +113,6 @@ async function run() {
         const prBody = pr.data.body;
         const filesList = changedFiles.data.map(f => f.filename).join(", ");
 
-        // Gather patches (diffs) for all changed files
         const diffs = changedFiles.data
           .filter(f => f.patch)
           .map(f => `File: ${f.filename}\n${f.patch}`)
