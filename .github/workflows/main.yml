@@ -1,0 +1,27 @@
+name: Listen for Status Change
+
+on:
+  project_card:
+    types: [moved]
+
+jobs:
+  on-status-change:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo (required for gh CLI)
+        uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        uses: actions/setup-gh-cli@v2
+
+      - name: Extract Issue or PR number
+        id: get_number
+        run: |
+          # project_card content_url is like: https://api.github.com/repos/owner/repo/issues/123
+          echo "number=$(basename '${{ github.event.project_card.content_url }}')" >> $GITHUB_OUTPUT
+
+      - name: Comment "hello" on the ticket
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ steps.get_number.outputs.number }} --body "hello"
