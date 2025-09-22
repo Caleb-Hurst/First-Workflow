@@ -1,0 +1,14 @@
+{
+  "name": "llm-issue-analyzer",
+  "version": "1.0.0",
+  "description": "Analyze GitHub issues using LLM and MCP context",
+  "main": "analyze-issues-by-label.js",
+  "scripts": {
+    "start": "node analyze-issues-by-label.js"
+  },
+  "dependencies": {
+    "@octokit/rest": "^20.0.0",
+    "dotenv": "^17.2.2",
+    "openai": "^4.43.0"
+  }
+}
