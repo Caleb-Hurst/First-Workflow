@@ -10,7 +10,7 @@ const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 async function findAssociatedPRNumber(issueNumber) {
-  // 1. Get timeline events for the issue to find linked PRs
+  // 1. Get timeline events for the issue to find linked PRs (look for cross-referenced events from PRs)
   const timeline = await octokit.issues.listEventsForTimeline({
     owner,
     repo,
@@ -19,13 +19,19 @@ async function findAssociatedPRNumber(issueNumber) {
   });
 
   for (const event of timeline.data) {
-    if (event.event === "connected" && event.source && event.source.issue && event.source.issue.pull_request) {
-      // Found a linked PR
-      return event.source.issue.number;
-    }
-    // Some events have a .pull_request field
-    if (event.event === "referenced" && event.commit_id == null && event.source && event.source.pull_request) {
-      return event.source.pull_request.number;
+    // PR cross-referenced this issue
+    if (
+      event.event === "cross-referenced" &&
+      event.source &&
+      event.source.pull_request &&
+      event.source.type === "issue"
+    ) {
+      if (event.source.issue && event.source.issue.pull_request) {
+        return event.source.issue.number;
+      }
+      if (event.source.pull_request.number) {
+        return event.source.pull_request.number;
+      }
     }
   }
 
