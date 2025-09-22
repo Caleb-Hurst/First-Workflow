@@ -47,17 +47,6 @@ async function findAssociatedPRNumber(issueNumber) {
     }
   }
 
-  // // 3. Fallback: search body and comments for PR references
-  // const issue = await octokit.issues.get({ owner, repo, issue_number: issueNumber });
-  // const bodyPRMatch = issue.data.body && issue.data.body.match(/#(\d+)/);
-  // if (bodyPRMatch) {
-  //   const possibleNumber = bodyPRMatch[1];
-  //   try {
-  //     const pr = await octokit.pulls.get({ owner, repo, pull_number: possibleNumber });
-  //     if (pr) return possibleNumber;
-  //   } catch (err) {}
-  // }
-
   const comments = await octokit.issues.listComments({
     owner,
     repo,
@@ -67,8 +56,8 @@ async function findAssociatedPRNumber(issueNumber) {
 
   for (const comment of comments.data) {
     const numberMatch = comment.body.match(/#(\d+)/);
-    const urlMatch = comment.body.match(/github\.com\/[^\/]+\/[^\/]+\/pull\/(\d+)/);
-    if (urlMatch) return urlMatch[1];
+    // const urlMatch = comment.body.match(/github\.com\/[^\/]+\/[^\/]+\/pull\/(\d+)/);
+    // if (urlMatch) return urlMatch[1];
     if (numberMatch) {
       const possibleNumber = numberMatch[1];
       try {
