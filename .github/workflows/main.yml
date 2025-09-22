@@ -14,7 +14,7 @@ jobs:
 
       - name: Find tickets that need testing
         run: |
-          gh issue list --repo Caleb-Hurst/First-Workflow --label "status:needs-test" --json number > issues.json
+          gh issue list --repo Caleb-Hurst/First-Workflow --label "status:Ready" --json number > issues.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
