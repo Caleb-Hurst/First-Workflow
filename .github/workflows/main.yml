@@ -1,12 +1,27 @@
-name: Listen for Status Change
+name: Send Un-tested Tickets to QA
 
 on:
-  projects_v2_item:
-    types: [edited]
+  workflow_dispatch:
 
 jobs:
-  on-status-change:
+  send-tickets-to-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Dump event payload
-        run: echo "${{ toJson(github.event) }}"
+      - name: Install GitHub CLI and jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh jq
+
+      - name: Find tickets that need testing
+        run: |
+          gh issue list --label "status:needs-test" --json number > issues.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on tickets
+        run: |
+          for number in $(jq -r '.[].number' issues.json); do
+            gh issue comment $number --body "Sending to QA for testing."
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
