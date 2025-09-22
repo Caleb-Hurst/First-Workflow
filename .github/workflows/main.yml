@@ -16,7 +16,7 @@ jobs:
         run: |
           gh issue list --repo Caleb-Hurst/First-Workflow --label "needs-test" --json number > issues.json
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
 
       - name: Comment on tickets
         run: |
@@ -24,4 +24,4 @@ jobs:
             gh issue comment $number --repo Caleb-Hurst/First-Workflow --body "Sending to QA for testing."
           done
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
